@@ -1,4 +1,4 @@
-module Models
+module Crm.Domain
 open System
 open FSharpPlus
 
@@ -50,6 +50,9 @@ type Contact={
 }
 
 type CommandContext={at: DateTime ; userId: UserId}
+module CommandContext=
+  let at (c:CommandContext) = c.at
+
 type CommandError = | ContactNotFound
 
 type Command =
