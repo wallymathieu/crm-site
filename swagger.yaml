@@ -1,0 +1,169 @@
+swagger: '2.0'
+info:
+  version: '1.0'
+  title: "CRM"
+  description: CRM is a simple API allowing end users to manage simple CRM items.
+  license:
+    name: Apache License v2
+    url: https://github.com/wallymathieu/crm-site/blob/master/LICENSE
+host: crm.gewalli.com
+basePath: /
+schemes:
+- http
+consumes:
+- application/json
+produces:
+- application/json
+paths:
+  /contacts:
+    x-summary: Contacts
+    get:
+      summary: List All contacts
+      responses:
+        200:
+          description: Successful Response
+          schema:
+            type: array
+            items:
+              $ref: '#/definitions/Contact'
+    post:
+      description: >-
+        You may create your own contacts using this action. It takes a JSON
+        object containing the available fields for contacts.
+      summary: Create a New Contact
+      parameters:
+        - name: body
+          in: body
+          required: true
+          schema:
+            $ref: '#/definitions/ContactRequest'
+      responses:
+        201:
+          description: ''
+          schema:
+            $ref: '#/definitions/Contact'
+  /contacts/{contactId}:
+    x-summary: Operations on a single contact
+    get:
+      summary: Get contact
+      parameters:
+        - name: contactId
+          in: path
+          description: The id of the contact
+          required: true
+          type: string
+      responses:
+        200:
+          description: Successful Response
+          schema:
+            type: array
+            items:
+              $ref: '#/definitions/Contact'
+        404:
+          description: Could not find contact
+    
+definitions:
+  Comment:
+    title: Contact
+    type: object
+    properties:
+      commentId: 
+        type: string
+      commentUri:
+        type: string
+        format: uri
+      comment:
+        type: string
+        example: "Potential!"
+  Activity:
+    title: Activity
+    type: object
+    properties:
+      activityId: 
+        type: string
+      activityUri:
+        type: string
+        format: uri
+      description:
+        type: string
+        example: "Call client!"
+      at:
+        type: string
+        format: date-time
+        example: "2017-07-21T17:32:28Z"
+      tags:
+        type: array
+        items:
+          type: string
+        example: ["call"]
+  Contact:
+    title: Contact
+    type: object
+    properties:
+      contactId: 
+        type: string
+      contactUri:
+        type: string
+        format: uri
+      name:
+        type: string
+        example: Erik Eriksson
+      phone:
+        type: string
+        format: tel
+        example: "+1334444"
+      email:
+        type: string
+        format: email
+        example: "erik.eriksson@company.com"
+      tags:
+        type: array
+        items:
+          type: string
+        example: ["lead"]
+      comments:
+        type: array
+        items:
+          $ref: '#/definitions/Comment'
+      activities:
+        type: array
+        items:
+          $ref: '#/definitions/Activity'
+  AssociatedContact:
+    allOf:
+      - $ref: '#/definitions/Contact'
+      - type: object
+        properties:
+          type:
+            type: string
+            example: lead
+
+  ContactRequest:
+    title: Contact Request
+    type: object
+    properties:
+      name:
+        type: string
+        example: Erik Eriksson
+      phone:
+        type: string
+        format: tel
+        example: "+1334444"
+      email:
+        type: string
+        format: email
+        example: "erik.eriksson@company.com"
+      tags:
+        type: array
+        items:
+          type: string
+        example: ["lead"]
+    required:
+      - name
+    #example:
+    #  question: Favourite programming language?
+    #  choices:
+    #    - Swift
+    #    - Python
+    #    - Objective-C
+    #    - Ruby
