@@ -44,27 +44,201 @@ paths:
             $ref: '#/definitions/Contact'
   /contacts/{contactId}:
     x-summary: Operations on a single contact
+    parameters:
+    - name: contactId
+      in: path
+      description: The id of the contact
+      required: true
+      type: string
+
     get:
       summary: Get contact
+      responses:
+        200:
+          description: Successful Response
+          schema:
+            $ref: '#/definitions/Contact'
+        404:
+          description: Could not find contact
+    patch:
+      summary: Update contact
       parameters:
-        - name: contactId
-          in: path
-          description: The id of the contact
+        - name: body
+          in: body
           required: true
-          type: string
+          schema:
+            $ref: '#/definitions/ContactRequest'
+      responses:
+        200:
+          description: Successful Response
+          schema:
+            $ref: '#/definitions/Contact'
+        404:
+          description: Could not find contact
+
+    delete:
+      summary: Remove contact
+      responses:
+        204:
+          description: Removed contact
+        404:
+          description: Could not find contact
+  /contacts/{contactId}/activities:
+    x-summary: Contact activities
+    parameters:
+    - name: contactId
+      in: path
+      description: The id of the contact
+      required: true
+      type: string
+    get:
+      summary: List All activities
       responses:
         200:
           description: Successful Response
           schema:
             type: array
             items:
-              $ref: '#/definitions/Contact'
+              $ref: '#/definitions/Activity'
+    post:
+      description: >-
+        Create a contact activity.
+      summary: Create a New Activity
+      parameters:
+        - name: body
+          in: body
+          required: true
+          schema:
+            $ref: '#/definitions/ActivityRequest'
+      responses:
+        201:
+          description: ''
+          schema:
+            $ref: '#/definitions/Activity'
+  /contacts/{contactId}/activities/{activityId}:
+    x-summary: Contact activities
+    parameters:
+    - name: contactId
+      in: path
+      description: The id of the contact
+      required: true
+      type: string
+    - name: activityId
+      in: path
+      description: The id of the activity
+      required: true
+      type: string
+    get:
+      summary: Get activity
+      responses:
+        200:
+          description: Successful Response
+          schema:
+            $ref: '#/definitions/Activity'
         404:
-          description: Could not find contact
-    
+          description: Could not find contact or activity
+    patch:
+      summary: Update activity
+      parameters:
+        - name: body
+          in: body
+          required: true
+          schema:
+            $ref: '#/definitions/ActivityRequest'
+      responses:
+        200:
+          description: Successful Response
+          schema:
+            $ref: '#/definitions/Activity'
+        404:
+          description: Could not find contact or activity
+    delete:
+      summary: Remove activity
+      responses:
+        204:
+          description: Removed activity
+        404:
+          description: Could not find contact or activity
+  /contacts/{contactId}/comments:
+    x-summary: Contact comments
+    parameters:
+    - name: contactId
+      in: path
+      description: The id of the contact
+      required: true
+      type: string
+    get:
+      summary: List All comments
+      responses:
+        200:
+          description: Successful Response
+          schema:
+            type: array
+            items:
+              $ref: '#/definitions/Comment'
+    post:
+      description: >-
+        Create a contact comment.
+      summary: Create a New Comment
+      parameters:
+        - name: body
+          in: body
+          required: true
+          schema:
+            $ref: '#/definitions/CommentRequest'
+      responses:
+        201:
+          description: ''
+          schema:
+            $ref: '#/definitions/Comment'
+  /contacts/{contactId}/comments/{commentId}:
+    x-summary: Contact activities
+    parameters:
+    - name: contactId
+      in: path
+      description: The id of the contact
+      required: true
+      type: string
+    - name: commentId
+      in: path
+      description: The id of the comment
+      required: true
+      type: string
+    get:
+      summary: Get comment
+      responses:
+        200:
+          description: Successful Response
+          schema:
+            $ref: '#/definitions/Comment'
+        404:
+          description: Could not find contact or comment
+    put:
+      description: >- 
+        Update comment.
+      summary: Update comment
+      parameters:
+        - name: body
+          in: body
+          required: true
+          schema:
+            $ref: '#/definitions/CommentRequest'
+      responses:
+        200:
+          description: ''
+          schema:
+            $ref: '#/definitions/Comment'
+    delete:
+      summary: Remove comment
+      responses:
+        204:
+          description: Removed comment
+        404:
+          description: Could not find contact or comment
+
 definitions:
   Comment:
-    title: Contact
+    title: Comment
     type: object
     properties:
       commentId: 
@@ -72,6 +246,13 @@ definitions:
       commentUri:
         type: string
         format: uri
+      comment:
+        type: string
+        example: "Potential!"
+  CommentRequest:
+    title: Contact
+    type: object
+    properties:
       comment:
         type: string
         example: "Potential!"
@@ -84,6 +265,22 @@ definitions:
       activityUri:
         type: string
         format: uri
+      description:
+        type: string
+        example: "Call client!"
+      at:
+        type: string
+        format: date-time
+        example: "2017-07-21T17:32:28Z"
+      tags:
+        type: array
+        items:
+          type: string
+        example: ["call"]
+  ActivityRequest:
+    title: Activity
+    type: object
+    properties:
       description:
         type: string
         example: "Call client!"
