@@ -256,6 +256,8 @@ definitions:
       comment:
         type: string
         example: "Potential!"
+    required:
+      - comment
   Activity:
     title: Activity
     type: object
@@ -293,6 +295,9 @@ definitions:
         items:
           type: string
         example: ["call"]
+    required:
+      - description
+      - at
   Contact:
     title: Contact
     type: object
