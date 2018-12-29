@@ -201,7 +201,7 @@ let webPart (repository : IContactRepository) (append:CommandContext*Command->As
               | Some c->Json.OK c ctx
               | None -> NOT_FOUND "" ctx
   /// handle command and add result to repository
-  let ``BAD_REQUEST_or_`` result (context:CommandContext) ofJson toCommand toJson=fun (ctx) -> monad {
+  let ``persist_then_BAD_REQUEST_or_`` result (context:CommandContext) ofJson toCommand toJson=fun (ctx) -> monad {
     match Json.getBody ctx with
     | Some body ->
       match ofJson context body with
@@ -211,43 +211,43 @@ let webPart (repository : IContactRepository) (append:CommandContext*Command->As
       | Error err -> return! (BAD_REQUEST err ctx)
     | None -> return! (BAD_REQUEST "Unable to parse JSON" ctx) }
 
-  let ``OK_or_BAD_REQUEST`` context = ``BAD_REQUEST_or_`` Json.OK context
-  let ``CREATED_or_BAD_REQUEST`` context = ``BAD_REQUEST_or_`` Json.CREATED context
+  let ``persist_then_OK_or_BAD_REQUEST`` context = ``persist_then_BAD_REQUEST_or_`` Json.OK context
+  let ``persist_then_CREATED_or_BAD_REQUEST`` context = ``persist_then_BAD_REQUEST_or_`` Json.CREATED context
 
   let createContact (context:CommandContext) : WebPart=
-    POST >=> ``CREATED_or_BAD_REQUEST`` context
+    POST >=> ``persist_then_CREATED_or_BAD_REQUEST`` context
               OfJson.contactReq
               AddContact // tocommand
               (snd >> ToJson.contact)
 
   let createActivity (context:CommandContext) contactId : WebPart=
     let id = ContactId contactId
-    POST >=> ``CREATED_or_BAD_REQUEST`` context
+    POST >=> ``persist_then_CREATED_or_BAD_REQUEST`` context
               OfJson.activityReq
               (fun activity->AddActivity(id, activity)) // tocommand
               (snd >> (ToJson.activity id))
 
   let createComment (context:CommandContext) contactId : WebPart=
     let id = ContactId contactId
-    POST >=> ``CREATED_or_BAD_REQUEST`` context
+    POST >=> ``persist_then_CREATED_or_BAD_REQUEST`` context
               OfJson.commentReq
               (fun comment->AddComment(id, comment))  // tocommand
               (snd >> (ToJson.comment id))
 
   let updateContact (context:CommandContext) contactId : WebPart=
-    POST >=> ``OK_or_BAD_REQUEST`` context
+    POST >=> ``persist_then_OK_or_BAD_REQUEST`` context
               (OfJson.updateContactReq (ContactId contactId))
               UpdateContact // tocommand
               (fun _ -> JNull)
 
   let updateActivity (context:CommandContext) (contactId,activityId): WebPart=
-    POST >=> ``OK_or_BAD_REQUEST`` context
+    POST >=> ``persist_then_OK_or_BAD_REQUEST`` context
               (OfJson.updateActivityReq (ContactId contactId) (ActivityId activityId))
               UpdateActivity // tocommand
               (fun _ -> JNull)
 
   let associateContact (context:CommandContext) (contactId,otherContactId): WebPart=
-    PUT >=> ``OK_or_BAD_REQUEST`` context
+    PUT >=> ``persist_then_OK_or_BAD_REQUEST`` context
               (OfJson.associateReq (ContactId contactId) (ContactId otherContactId))
               AssociateContactToContact // tocommand
               (fun _ -> JNull)
