@@ -81,6 +81,49 @@ paths:
           description: Removed contact
         404:
           description: Could not find contact
+  /contacts/{contactId}/contacts:
+    x-summary: Associated contacts
+    parameters:
+    - name: contactId
+      in: path
+      description: The id of the contact
+      required: true
+      type: string
+    get:
+      summary: List all associated contacts
+      responses:
+        200:
+          description: Successful Response
+          schema:
+            type: array
+            items:
+              $ref: '#/definitions/AssociatedContact'
+  /contacts/{contactId}/contacts/{otherContactId}:
+    x-summary: Associate contact
+    parameters:
+    - name: contactId
+      in: path
+      description: The id of the contact
+      required: true
+      type: string
+    - name: otherContactId
+      in: path
+      description: The id of the other contact
+      required: true
+      type: string
+    put:
+      description: >-
+        Associate a contact to another contact.
+      summary: Associate contact with another contact
+      parameters:
+        - name: body
+          in: body
+          required: true
+          schema:
+            $ref: '#/definitions/ContactAssociateRequest'
+      responses:
+        200:
+          description: Successful Response
   /contacts/{contactId}/activities:
     x-summary: Contact activities
     parameters:
@@ -334,6 +377,13 @@ definitions:
           type:
             type: string
             example: lead
+
+  ContactAssociateRequest:
+    type: object
+    properties:
+      type:
+        type: string
+        example: lead
 
   ContactRequest:
     title: Contact Request
