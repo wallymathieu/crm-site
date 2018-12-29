@@ -65,21 +65,27 @@ module Paths =
 module JsonValue=
   let ofList = List.toArray >> JsonValue.Array
 module ToJson=
-  let comment (comment: Comment) :JsonValue =
+  let comment (ContactId contactId) (comment: Comment) :JsonValue =
     jobj [
+      "commentId" .= comment.commentId
+      "commentUri" .= (sprintf Paths.comment contactId comment.commentId)
       "comment" .= comment.comment
     ]
 
-  let activity (activity: Activity) :JsonValue =
+  let activity (ContactId contactId) (activity: Activity) :JsonValue =
     jobj [
+      "activityId" .= activity.activityId
+      "activityUri" .= (sprintf Paths.activity contactId activity.activityId)
       "description" .= activity.description
       "at" .= activity.at
       "tags" .= activity.tags
     ]
   let contactProperties (contact: Contact)=
-    let activities = List.map activity contact.activities |> JsonValue.ofList
-    let comments = List.map comment contact.comments |> JsonValue.ofList
+    let activities = List.map (activity contact.contactId) contact.activities |> JsonValue.ofList
+    let comments = List.map (comment contact.contactId) contact.comments |> JsonValue.ofList
     [
+      "contactId" .= ContactId.unwrap contact.contactId
+      "contactUri" .= (sprintf Paths.contact <| ContactId.unwrap contact.contactId)
       "name" .= contact.name
       "phone" .= contact.phone
       "email" .= contact.email
@@ -159,14 +165,16 @@ let webPart (repository : IContactRepository) (append:CommandContext*Command->As
               | None -> NOT_FOUND "" ctx
   let getActivities id=
     GET >=> fun (ctx) ->
-              match repository.GetContact(ContactId id)
-                    |> Option.map (fun c->List.map ToJson.activity c.activities |> JsonValue.ofList) with
+              let contactId = ContactId id
+              match repository.GetContact contactId
+                    |> Option.map (fun c->List.map (ToJson.activity contactId) c.activities |> JsonValue.ofList) with
               | Some c->Json.OK c ctx
               | None -> NOT_FOUND "" ctx
   let getComments id=
     GET >=> fun (ctx) ->
-              match repository.GetContact(ContactId id)
-                    |> Option.map (fun c->List.map ToJson.comment c.comments |> JsonValue.ofList) with
+              let contactId = ContactId id
+              match repository.GetContact contactId
+                    |> Option.map (fun c->List.map (ToJson.comment contactId) c.comments |> JsonValue.ofList) with
               | Some c->Json.OK c ctx
               | None -> NOT_FOUND "" ctx
 
@@ -179,15 +187,17 @@ let webPart (repository : IContactRepository) (append:CommandContext*Command->As
 
   let getActivity (contactId,activityId)=
     GET >=> fun (ctx) ->
-              match repository.GetContact(ContactId contactId)
-                    |> Option.bind (Contact.activityWithId activityId) |> Option.map ToJson.activity with
+              let contactId = ContactId contactId
+              match repository.GetContact contactId
+                    |> Option.bind (Contact.activityWithId activityId) |> Option.map (ToJson.activity contactId)with
               | Some c->Json.OK c ctx
               | None -> NOT_FOUND "" ctx
 
   let getComment (contactId,commentId)=
     GET >=> fun (ctx) ->
-              match repository.GetContact(ContactId contactId)
-                    |> Option.bind (Contact.commentWithId commentId) |> Option.map ToJson.comment with
+              let contactId = ContactId contactId
+              match repository.GetContact contactId
+                    |> Option.bind (Contact.commentWithId commentId) |> Option.map (ToJson.comment contactId) with
               | Some c->Json.OK c ctx
               | None -> NOT_FOUND "" ctx
   /// handle command and add result to repository
@@ -211,16 +221,18 @@ let webPart (repository : IContactRepository) (append:CommandContext*Command->As
               (snd >> ToJson.contact)
 
   let createActivity (context:CommandContext) contactId : WebPart=
+    let id = ContactId contactId
     POST >=> ``CREATED_or_BAD_REQUEST`` context
               OfJson.activityReq
-              (fun activity->AddActivity(ContactId contactId, activity)) // tocommand
-              (snd >> ToJson.activity)
+              (fun activity->AddActivity(id, activity)) // tocommand
+              (snd >> (ToJson.activity id))
 
   let createComment (context:CommandContext) contactId : WebPart=
+    let id = ContactId contactId
     POST >=> ``CREATED_or_BAD_REQUEST`` context
               OfJson.commentReq
-              (fun comment->AddComment(ContactId contactId, comment))  // tocommand
-              (snd >> ToJson.comment)
+              (fun comment->AddComment(id, comment))  // tocommand
+              (snd >> (ToJson.comment id))
 
   let updateContact (context:CommandContext) contactId : WebPart=
     POST >=> ``OK_or_BAD_REQUEST`` context
