@@ -1,6 +1,25 @@
 module Crm.Domain
 open System
 open FSharpPlus
+open System.Security.Cryptography
+open System.Text
+(*
+using (var sha = SHA256.Create())
+            {
+                var bytes = Encoding.UTF8.GetBytes(input);
+                var hash = sha.ComputeHash(bytes);
+
+                return Convert.ToBase64String(hash);
+            }
+*)
+module SHA512=
+  let ofList (arr:string list)=
+    use sha = SHA512.Create()
+    let bytes =
+      arr |> Array.ofList
+          |> Array.collect Encoding.UTF8.GetBytes
+          |> sha.ComputeHash
+    BitConverter.ToInt64(bytes, 0)
 
 [<Struct>]
 type UserId = UserId of string
@@ -9,30 +28,31 @@ with
 
 
 [<Struct>]
-type ContactId = ContactId of int
+type ContactId = ContactId of int64
 with
   override this.ToString()=match this with ContactId cId->sprintf "co%d" cId
 module ContactId =
   let unwrap (ContactId cId) = cId
-[<Struct>]
-type CommentId = CommentId of ContactId * int
-with
-  override this.ToString()=match this with CommentId (contactId,commentId)->sprintf "%O-cm%d" contactId commentId
 
 [<Struct>]
-type ActivityId = ActivityId of ContactId * int
+type CommentId = CommentId of int64
 with
-  override this.ToString()=match this with ActivityId (contactId,accountId)->sprintf "%O-ac%d" contactId accountId
+  override this.ToString()=match this with CommentId commentId->sprintf "cm%d" commentId
+
+[<Struct>]
+type ActivityId = ActivityId of int64
+with
+  override this.ToString()=match this with ActivityId accountId->sprintf "ac%d" accountId
 
 type Comment={
-  commentId:int
+  commentId:int64
   comment:string
 }
 module Comment=
   let id (c:Comment)=c.commentId
 
 type Activity={
-  activityId:int
+  activityId:int64
   at:DateTime
   description:string
   tags:string list
@@ -48,26 +68,32 @@ type Contact={
   comments: Comment list
   activities: Activity list
 }
-
+module Contact=
+  let activityWithId (id) (c:Contact) = c.activities |> List.tryFind ((=) id << Activity.id)
+  let commentWithId (id) (c:Contact) = c.comments |> List.tryFind ((=) id << Comment.id)
 type CommandContext={at: DateTime ; userId: UserId}
 module CommandContext=
-  let at (c:CommandContext) = c.at
-
+  let at (ctx:CommandContext) = ctx.at
+  let toStrList (ctx:CommandContext) = [ctx.at.ToString("O"); string ctx.userId]
+  /// Compute an id based on name and when the contact was created
+  let idOf (text:string) (ctx:CommandContext) = text:: toStrList ctx |> SHA512.ofList
 type CommandError = | ContactNotFound
-
+type CommandResult =
+  | ContactAdded
+  | ContactModified
 type Command =
-  | AddActivity of ContactId * at:DateTime*comment:string*tags:string list
-  | SetActivityTags of ActivityId * tags:string list
-  | IgnoreActivity of ActivityId
-  | CompleteActivity of ActivityId
-  | AddContactComment of ContactId * comment:string
-  | RemoveComment of CommentId
-  | AddContact of name:string * phone:string * email:string * tags:string list
-  | UpdateContact of ContactId * name:string * phone:string * email:string
-  | SetContactTags of ContactId * tags:string list
+  | AddActivity of ContactId * Activity
+  | UpdateActivity of ContactId * ActivityId * description:string option * at:DateTime option * tags:string list option
+  | IgnoreActivity of ContactId * ActivityId
+  | CompleteActivity of ContactId * ActivityId
+  | AddComment of ContactId * Comment
+  | RemoveComment of ContactId * CommentId
+  | AddContact of Contact
+  | UpdateContact of ContactId * name:string option * phone:string option * email:string option *tags:string list option
   | AssociateContactToContact of from:ContactId * association:string * to':ContactId
   | RemoveContact of ContactId
 
+[<Interface>]
 type IContactRepository=
     abstract member GetContact: ContactId->Contact option
     abstract member GetContacts: unit->Contact list
@@ -76,9 +102,6 @@ type IContactRepository=
     abstract member Save: Contact->unit
     abstract member Remove: ContactId->unit
     abstract member Associate: ContactId->string->ContactId->unit
-    abstract member NextContactId: unit -> int
-    abstract member NextCommentId: unit -> int
-    abstract member NextActivityId: unit -> int
 
 [<AutoOpen>]
 module ContactRepository=
@@ -86,92 +109,85 @@ module ContactRepository=
       member self.Handle(command) =
           let notWithActivityId activityId = not << (=) activityId << Activity.id
           let notWithCommentId commentId = not << (=) commentId << Comment.id
+          let modified ()= ContactModified
 
           match command with
-          | AddActivity(contactId, time, comment, tags) ->
+          | AddActivity(contactId, activity) ->
             self.GetContact contactId
             |> Option.map (fun c->
-              let activity = { activityId=self.NextCommentId(); description=comment; at =time; tags=tags }
               self.Save({ c with activities = activity:: c.activities } ))
             |> Result.ofOption ContactNotFound
-          | SetActivityTags (ActivityId(contactId, activityId),tags)->
+            |> Result.map modified
+          | UpdateActivity (contactId, (ActivityId activityId), maybeDescription, maybeAt, maybeTags)->
             self.GetContact contactId
             |> Option.map (fun c->
-              let replaceActivity (a:Activity) = if a.activityId = activityId then { a with tags=tags} else a
+              let maybeUpdateDescription c= match maybeDescription with | Some description -> {c with description=description} | None -> c
+              let maybeUpdateAt (a:Activity)= match maybeAt with | Some at -> {a with at=at} | None -> a
+              let maybeUpdateTags (a:Activity)= match maybeTags with | Some tags -> {a with tags=tags} | None -> a
+              let update = maybeUpdateDescription>> maybeUpdateAt >> maybeUpdateTags
+              let replaceActivity (a:Activity) = if a.activityId = activityId then update a else a
               self.Save({ c with activities = List.map replaceActivity c.activities } ) )
             |> Result.ofOption ContactNotFound
-          | IgnoreActivity (ActivityId(contactId, activityId)) ->
+            |> Result.map modified
+          | IgnoreActivity (contactId, (ActivityId activityId)) ->
             self.GetContact contactId
             |> Option.map (fun c->
               let contact = { c with activities = List.filter (notWithActivityId activityId) c.activities }
               self.Save contact)
             |> Result.ofOption ContactNotFound
-          | CompleteActivity (ActivityId(contactId, activityId)) ->
+            |> Result.map modified
+          | CompleteActivity (contactId, (ActivityId activityId)) ->
             self.GetContact contactId
             |> Option.map (fun c->
               let contact = { c with activities = List.filter (notWithActivityId activityId) c.activities }
               self.Save contact)
             |> Result.ofOption ContactNotFound
-          | AddContactComment (contactId, comment) ->
+            |> Result.map modified
+          | AddComment (contactId, comment) ->
             self.GetContact contactId
             |> Option.map (fun c->
-              let comment = { commentId = self.NextCommentId(); comment=comment }
               let contact = { c with comments = comment :: c.comments }
               self.Save contact)
             |> Result.ofOption ContactNotFound
-          | RemoveComment (CommentId(contactId, commentId) ) ->
+            |> Result.map modified
+          | RemoveComment (contactId, (CommentId commentId)) ->
             self.GetContact contactId
             |> Option.map (fun c->
               let contact = { c with comments = List.filter (notWithCommentId commentId) c.comments }
               self.Save contact)
             |> Result.ofOption ContactNotFound
-          | AddContact (name, phone, email, tags) ->
-            let contact ={contactId=self.NextContactId() |> ContactId;
-                        name=name; phone=phone; email=email; tags=tags; comments=[]; activities=[]}
+            |> Result.map modified
+          | AddContact contact ->
             self.Save contact
-            Ok ()
-          | UpdateContact (contactId, name, phone, email) ->
+            Ok ContactAdded
+          | UpdateContact (contactId, maybeName, maybePhone, maybeEmail, maybeTags) ->
+            let maybeUpdateName c= match maybeName with | Some name -> {c with name=name} | None -> c
+            let maybeUpdatePhone c= match maybePhone with | Some phone -> {c with phone=phone} | None -> c
+            let maybeUpdateEmail c= match maybeEmail with | Some email -> {c with email=email} | None -> c
+            let maybeUpdateTags (c:Contact)= match maybeTags with | Some tags -> {c with tags=tags} | None -> c
+            let update = maybeUpdateName>> maybeUpdatePhone >> maybeUpdateEmail >> maybeUpdateTags
             self.GetContact contactId
-            |> Option.map (fun c-> self.Save {c with name=name; phone=phone; email=email})
+            |> Option.map (self.Save << update)
             |> Result.ofOption ContactNotFound
-          | SetContactTags (contactId , tags)->
-            self.GetContact contactId
-            |> Option.map (fun c-> self.Save {c with tags = tags})
-            |> Result.ofOption ContactNotFound
+            |> Result.map modified
           | AssociateContactToContact (from,association,to')->
             self.Associate from association to'
-            Ok ()
+            Ok ContactModified
           | RemoveContact contactId->
             self.Remove contactId
-            Ok ()
+            Ok ContactModified
 
-/// small helper class in order to observe values and store the maximum value
-type ThreadSafeMax<'t when 't :comparison>(initial:'t) =
-  let monitor = Object()
-  let mutable maximum = initial
-  /// get the current maximum
-  member __.Value with get ()= maximum
-  /// observe a value, store the value if it's greater than the current value
-  member __.Observe value =
-    lock monitor (fun ()-> maximum <- max maximum value)
-    value
 /// Simple in memory repository
 type ContactRepository()=
   let mutable contacts = Map.empty
   let mutable contactAssociations = Map.empty
-  let contactId = ThreadSafeMax 0
-  let activityId = ThreadSafeMax 0
-  let commentId = ThreadSafeMax 0
 
   interface IContactRepository with
     member __.GetContact (ContactId id) = Map.tryFind id contacts
     member __.GetContacts ()= Map.values contacts |> Seq.toList
-    member __.NextContactId ()= 1+contactId.Value
-    member __.NextActivityId ()= 1+activityId.Value
-    member __.NextCommentId ()= 1+commentId.Value
     member __.Save (c:Contact) =
-      let id = contactId.Observe <| ContactId.unwrap c.contactId
-      contacts <- Map.add id c contacts
+      let cId = ContactId.unwrap c.contactId
+      contacts <- Map.add cId c contacts
     member __.Remove (ContactId contactId) =
       contacts <- Map.remove contactId contacts
       contactAssociations <- Map.remove contactId contactAssociations
