@@ -48,15 +48,15 @@ module Paths =
   let contacts = "/contacts"
   /// /contacts/INT
   let contact : Int64Path = "/contacts/%d"
-  let contactTags : Int64Path = "/contacts/%d/tags"
+  /// /contacts/INT/contacts
+  let associatedContacts : Int64Path = "/contacts/%d/contacts"
+  let associateContact : Int64AndInt64Path = "/contacts/%d/contacts/%d"
   /// /contacts/INT/activities
   let activities : Int64Path = "/contacts/%d/activities"
   /// /contacts/INT/activities/INT
   let activity : Int64AndInt64Path = "/contacts/%d/activities/%d"
-  let activityTags : Int64AndInt64Path = "/contacts/%d/activities/%d/tags"
   /// /contacts/INT/comments/INT
   let comments : Int64Path = "/contacts/%d/comments"
-
   /// /contacts/INT/comments/INT
   let comment : Int64AndInt64Path = "/contacts/%d/comments/%d"
 
@@ -65,28 +65,32 @@ module Paths =
 module JsonValue=
   let ofList = List.toArray >> JsonValue.Array
 module ToJson=
-  let comment (x: Comment) :JsonValue =
+  let comment (comment: Comment) :JsonValue =
     jobj [
-      "comment" .= x.comment
+      "comment" .= comment.comment
     ]
 
-  let activity (x: Activity) :JsonValue =
+  let activity (activity: Activity) :JsonValue =
     jobj [
-      "description" .= x.description
-      "at" .= x.at
-      "tags" .= x.tags
+      "description" .= activity.description
+      "at" .= activity.at
+      "tags" .= activity.tags
     ]
-  let contact (x: Contact) :JsonValue =
-    let activities = List.map activity x.activities |> JsonValue.ofList
-    let comments = List.map comment x.comments |> JsonValue.ofList
-    jobj [
-      "name" .= x.name
-      "phone" .= x.phone
-      "email" .= x.email
-      "tags" .= x.tags
+  let contactProperties (contact: Contact)=
+    let activities = List.map activity contact.activities |> JsonValue.ofList
+    let comments = List.map comment contact.comments |> JsonValue.ofList
+    [
+      "name" .= contact.name
+      "phone" .= contact.phone
+      "email" .= contact.email
+      "tags" .= contact.tags
       "activities", activities
       "comments", comments
     ]
+  let contact (contact: Contact) :JsonValue =
+    jobj <| contactProperties contact
+  let associatedContact (contact: Contact, tag) :JsonValue =
+    jobj <| ["type" .= tag] @ (contactProperties contact)
 module OfJson=
   let contactReq context json : Contact ParseResult =
     let create name phone email tags= {
@@ -130,6 +134,13 @@ module OfJson=
     | JObject o -> create <!> (o .@? "description") <*> (o .@? "at") <*> (o .@? "tags")
     | x -> Error (sprintf "Expected activity, found %A" x)
 
+  let associateReq contactId otherContactId _ json : (ContactId*string*ContactId) ParseResult=
+    //AssociateContactToContact (from,association,to')
+    let create typ  = (contactId, typ, otherContactId)
+    match json with
+    | JObject o -> create <!> (o .@ "type")
+    | x -> Error (sprintf "Expected associate request, found %A" x)
+
 let webPart (repository : IContactRepository) (append:CommandContext*Command->Async<unit>) (time:unit->DateTime)=
   let onCommand (context,command) = async {
     do! append(context, command)
@@ -158,6 +169,13 @@ let webPart (repository : IContactRepository) (append:CommandContext*Command->As
                     |> Option.map (fun c->List.map ToJson.comment c.comments |> JsonValue.ofList) with
               | Some c->Json.OK c ctx
               | None -> NOT_FOUND "" ctx
+
+  let getAssociatedContacts id=
+    GET >=> fun (ctx) ->
+              match repository.GetContactAssociations(ContactId id)
+                    |> List.map ToJson.associatedContact with
+              | [] -> NOT_FOUND "" ctx
+              | list->Json.OK (JsonValue.ofList list) ctx
 
   let getActivity (contactId,activityId)=
     GET >=> fun (ctx) ->
@@ -207,13 +225,19 @@ let webPart (repository : IContactRepository) (append:CommandContext*Command->As
   let updateContact (context:CommandContext) contactId : WebPart=
     POST >=> ``OK_or_BAD_REQUEST`` context
               (OfJson.updateContactReq (ContactId contactId))
-              (fun update->UpdateContact update)  // tocommand
+              UpdateContact // tocommand
               (fun _ -> JNull)
 
   let updateActivity (context:CommandContext) (contactId,activityId): WebPart=
     POST >=> ``OK_or_BAD_REQUEST`` context
               (OfJson.updateActivityReq (ContactId contactId) (ActivityId activityId))
-              (fun update->UpdateActivity update)  // tocommand
+              UpdateActivity // tocommand
+              (fun _ -> JNull)
+
+  let associateContact (context:CommandContext) (contactId,otherContactId): WebPart=
+    PUT >=> ``OK_or_BAD_REQUEST`` context
+              (OfJson.associateReq (ContactId contactId) (ContactId otherContactId))
+              AssociateContactToContact // tocommand
               (fun _ -> JNull)
 
   WebPart.choose [ path "/" >=> (OK "")
@@ -235,5 +259,8 @@ let webPart (repository : IContactRepository) (append:CommandContext*Command->As
                                        pathScan Paths.comments getComments
                                        pathScan Paths.comments (createComment context)
                                        pathScan Paths.comment getComment
+                                       // associate contact
+                                       pathScan Paths.associatedContacts getAssociatedContacts
+                                       pathScan Paths.associateContact (associateContact context)
                                        ]
                     )]
