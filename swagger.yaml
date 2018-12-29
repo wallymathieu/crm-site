@@ -71,8 +71,6 @@ paths:
       responses:
         200:
           description: Successful Response
-          schema:
-            $ref: '#/definitions/Contact'
         404:
           description: Could not find contact
 
@@ -148,8 +146,6 @@ paths:
       responses:
         200:
           description: Successful Response
-          schema:
-            $ref: '#/definitions/Activity'
         404:
           description: Could not find contact or activity
     delete:
@@ -225,9 +221,7 @@ paths:
             $ref: '#/definitions/CommentRequest'
       responses:
         200:
-          description: ''
-          schema:
-            $ref: '#/definitions/Comment'
+          description: Successful Response
     delete:
       summary: Remove comment
       responses:
@@ -331,6 +325,7 @@ definitions:
         type: array
         items:
           $ref: '#/definitions/Activity'
+
   AssociatedContact:
     allOf:
       - $ref: '#/definitions/Contact'
@@ -362,10 +357,3 @@ definitions:
         example: ["lead"]
     required:
       - name
-    #example:
-    #  question: Favourite programming language?
-    #  choices:
-    #    - Swift
-    #    - Python
-    #    - Objective-C
-    #    - Ruby
