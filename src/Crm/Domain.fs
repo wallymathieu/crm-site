@@ -1,26 +1,7 @@
 module Crm.Domain
 open System
 open FSharpPlus
-open System.Security.Cryptography
-open System.Text
-(*
-using (var sha = SHA256.Create())
-            {
-                var bytes = Encoding.UTF8.GetBytes(input);
-                var hash = sha.ComputeHash(bytes);
-
-                return Convert.ToBase64String(hash);
-            }
-*)
-module SHA512=
-  let ofList (arr:string list)=
-    use sha = SHA512.Create()
-    let bytes =
-      arr |> Array.ofList
-          |> Array.collect Encoding.UTF8.GetBytes
-          |> sha.ComputeHash
-    BitConverter.ToInt64(bytes, 0)
-
+open Crm.Security.Cryptography
 [<Struct>]
 type UserId = UserId of string
 with
@@ -87,6 +68,7 @@ type Command =
   | IgnoreActivity of ContactId * ActivityId
   | CompleteActivity of ContactId * ActivityId
   | AddComment of ContactId * Comment
+  | UpdateComment of ContactId * CommentId * comment:string option
   | RemoveComment of ContactId * CommentId
   | AddContact of Contact
   | UpdateContact of ContactId * name:string option * phone:string option * email:string option *tags:string list option
@@ -102,6 +84,9 @@ type IContactRepository=
     abstract member Save: Contact->unit
     abstract member Remove: ContactId->unit
     abstract member Associate: ContactId->string->ContactId->unit
+
+module Result=
+  let ofOption err = function | Some ok -> Ok ok | None->Error err
 
 [<AutoOpen>]
 module ContactRepository=
@@ -148,6 +133,15 @@ module ContactRepository=
             |> Option.map (fun c->
               let contact = { c with comments = comment :: c.comments }
               self.Save contact)
+            |> Result.ofOption ContactNotFound
+            |> Result.map modified
+          | UpdateComment (contactId, (CommentId commentId), maybeComment)->
+            self.GetContact contactId
+            |> Option.map (fun c->
+              let maybeUpdateComment c= match maybeComment with | Some comment -> {c with comment=comment} | None -> c
+              let update = maybeUpdateComment
+              let replaceComment (c:Comment) = if c.commentId = commentId then update c else c
+              self.Save({ c with comments = List.map replaceComment c.comments } ) )
             |> Result.ofOption ContactNotFound
             |> Result.map modified
           | RemoveComment (contactId, (CommentId commentId)) ->

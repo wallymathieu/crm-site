@@ -1,5 +1,4 @@
-﻿open Suave
-open System
+﻿open System
 
 open Crm.Web
 open Crm.Domain
@@ -8,9 +7,8 @@ open FSharpPlus
 open FSharpPlus.Data
 open FSharpPlus.Operators
 type CmdArgs =
-  { IP : System.Net.IPAddress
-    Port : Sockets.Port
-    Json : string option
+  { Json : string option
+    Jwt : string option
   }
 [<EntryPoint>]
 let main argv =
@@ -21,22 +19,18 @@ let main argv =
 
     //default bind to 127.0.0.1:8083
     let defaultArgs =
-      { IP = System.Net.IPAddress.Loopback
-        Port = 8083us
-        Json = None
+      { Json = None
+        Jwt = None
       }
 
     let rec parseArgs b args =
       match args with
       | [] -> b
-      | "--ip" :: IPAddress ip :: xs -> parseArgs { b with IP = ip } xs
-      | "--port" :: Port p :: xs -> parseArgs { b with Port = p } xs
       | "--json" :: file :: xs -> parseArgs { b with Json = Some file } xs
+      | "--jwt" :: jwt :: xs -> parseArgs { b with Jwt = Some jwt } xs
       | invalidArgs ->
         printfn "error: invalid arguments %A" invalidArgs
         printfn "Usage:"
-        printfn "    --ip ADDRESS   ip address (Default: %O)" defaultArgs.IP
-        printfn "    --port PORT    port (Default: %i)" defaultArgs.Port
         exit 1
 
     argv
@@ -62,7 +56,13 @@ let main argv =
   let append c =async {
     for appender in appenders do
       do! appender.Batch([ c ]) }
-  let webPart = webPart repository append time
+    // (append:CommandContext*Command->Async<unit>)
+  let onCommand (context,command) = async {
+    do! append(context, command)
+    return repository.Handle command
+  }
+  let authenticated = ``x-jwt-payload authenticated``
+  let webPart = webPart authenticated repository onCommand time
   // start suave
   startWebServer { defaultConfig with bindings = [ HttpBinding.create HTTP args.IP args.Port ] } (OptionT.run << webPart )
   0
