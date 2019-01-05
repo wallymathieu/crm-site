@@ -230,14 +230,14 @@ let webPart authenticated (repository : IContactRepository) onCommand (time:unit
                 | Some c->Json.OK c ctx
                 | None -> NOT_FOUND "" ctx
 
-    let create contactId : WebPart=
+    let create contactId : WebPart<_>=
       let id = ContactId contactId
       POST >=> ``persist_then_CREATED_or_BAD_REQUEST`` context
                 OfJson.activityReq
                 (fun activity->AddActivity(id, activity)) // tocommand
                 (snd >> (ToJson.activity id))
 
-    let update (contactId,activityId): WebPart=
+    let update (contactId,activityId): WebPart<_>=
       POST >=> ``persist_then_OK_or_BAD_REQUEST`` context
                 (OfJson.updateActivityReq (ContactId contactId) (ActivityId activityId))
                 UpdateActivity // tocommand
@@ -265,7 +265,7 @@ let webPart authenticated (repository : IContactRepository) onCommand (time:unit
                 | Some c->Json.OK c ctx
                 | None -> NOT_FOUND "" ctx
 
-    let create contactId : WebPart=
+    let create contactId : WebPart<_>=
       let id = ContactId contactId
       POST >=> ``persist_then_CREATED_or_BAD_REQUEST`` context
                 OfJson.commentReq
@@ -277,7 +277,7 @@ let webPart authenticated (repository : IContactRepository) onCommand (time:unit
      pathScan Paths.comment get]
 
   let associations context =
-    let associateContact (contactId,otherContactId): WebPart=
+    let associateContact (contactId,otherContactId): WebPart<_>=
       PUT >=> ``persist_then_OK_or_BAD_REQUEST`` context
                 (OfJson.associateReq (ContactId contactId) (ContactId otherContactId))
                 AssociateContactToContact // tocommand

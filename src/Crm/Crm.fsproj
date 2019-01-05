@@ -17,8 +17,8 @@
     <PackageReference Include="Microsoft.AspNetCore" Version="2.2.*" />
     <PackageReference Include="FSharp.Data" Version="3.0.0" />
     <PackageReference Include="Fleece.FSharpData" Version="0.8.0-alpha-2" />
-    <PackageReference Include="FSharpPlus.AspNetCore.Suave" Version="0.0.2" />
-    <PackageReference Include="FSharpPlus.AspNetCore" Version="0.0.2" />
+    <PackageReference Include="FSharpPlus.AspNetCore.Suave" Version="0.0.4" />
+    <PackageReference Include="FSharpPlus.AspNetCore" Version="0.0.4" />
     <PackageReference Include="Newtonsoft.Json" Version="12.0.1" />
     <PackageReference Update="FSharp.Core" Version="4.5.4" />
     <PackageReference Include="FSharpPlus" Version="1.1.0-CI00252" />
