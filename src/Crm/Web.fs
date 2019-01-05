@@ -1,21 +1,24 @@
 module Crm.Web
 open System
-open FSharpPlus
-open Crm.Suave
-open Crm.Suave.Writers
-open Crm.Suave.Filters
-open Crm.Suave.Successful
-open Crm.Suave.RequestErrors
+open System.IO
+open System.Text
+
+open FSharpPlus.AspNetCore.Suave
+open Filters
+open Successful
+open RequestErrors
 
 open Fleece
 open Fleece.FSharpData
 open Fleece.FSharpData.Operators
 open FSharp.Data
 
-open Crm.Domain
+open FSharpPlus
+open FSharpPlus.Operators
+
 open Crm
-open FSharpPlus.Data
-open System.Text
+open Crm.Domain
+
 (* Fake auth in order to simplify web testing *)
 
 type Session =
@@ -27,19 +30,36 @@ with
     let create sub= { subject =sub }
     match json with
     | JObject o -> create <!> (o .@ "sub")
-    | x -> Error (sprintf "Expected JwtPayload, found %A" x)
-let authenticated f = //
-  let context apply (a : Suave.Http.HttpContext) = apply a a
+    | x -> Decode.Fail.objExpected x
+let ``x-jwt-payload authenticated`` f = //
+  let context apply (a : Http.Context) = apply a a
   context (fun x ->
-    match x.request.header "x-jwt-payload" with
-    | Choice1Of2 u ->
-      Convert.FromBase64String u
+    match Request.Header.tryGet "x-jwt-payload" x.request with
+    | Some u ->
+      string u
+      |> Convert.FromBase64String
       |> Encoding.UTF8.GetString
       |> parseJson
       |> Result.map( fun (payload:JwtPayload)->UserId payload.subject)
       |> function | Ok user->f (UserLoggedOn(user))
                   | Error _ ->f NoSession
-    | Choice2Of2 _ -> f NoSession)
+    | None -> f NoSession)
+
+module Json=
+  open Writers
+  let inline OK v=
+    OK (string v)
+    >=> setContentType "application/json; charset=utf-8"
+  let inline CREATED v=
+    CREATED (string v)
+    >=> setContentType "application/json; charset=utf-8"
+  let inline BAD_REQUEST v =
+    BAD_REQUEST (string v)
+    >=> setContentType "application/json; charset=utf-8"
+  let getBody (c:Http.Context)=
+    use reader =new StreamReader(c.request.Body)
+    let body = reader.ReadToEnd()
+    try Some (JsonValue.Parse body) with _ -> None
 
 module Paths =
   type Int64Path = PrintfFormat<int64 -> string, unit, string, string, int64>
@@ -109,7 +129,7 @@ module OfJson=
     }
     match json with
     | JObject o -> create <!> (o .@ "name") <*> (o .@? "phone") <*> (o .@? "email")<*> (o .@? "tags")
-    | x -> Error (sprintf "Expected contact request, found %A" x)
+    | x -> Decode.Fail.objExpected x
   let commentReq context json: Comment ParseResult =
     let create comment = {
       commentId = CommandContext.idOf comment context
@@ -117,7 +137,7 @@ module OfJson=
     }
     match json with
     | JObject o -> create <!> (o .@ "comment")
-    | x -> Error (sprintf "Expected comment, found %A" x)
+    | x -> Decode.Fail.objExpected x
   let activityReq context json: Activity ParseResult =
     let create desc at tags = {
       activityId = CommandContext.idOf desc context
@@ -125,81 +145,29 @@ module OfJson=
     }
     match json with
     | JObject o -> create <!> (o .@ "description") <*> (o .@ "at") <*> (o .@? "tags")
-    | x -> Error (sprintf "Expected activity, found %A" x)
+    | x -> Decode.Fail.objExpected x
 
   let updateContactReq (contactId)  _ json:  (ContactId * string option* string option* string option * string list option) ParseResult=
     //name:string * phone:string * email:string
     let create name phone email tags= (contactId, name, phone, email, tags)
     match json with
     | JObject o -> create <!> (o .@? "name") <*> (o .@? "phone") <*> (o .@? "email") <*> (o .@? "tags")
-    | x -> Error (sprintf "Expected contact request, found %A" x)
+    | x -> Decode.Fail.objExpected x
 
   let updateActivityReq contactId activityId _ json: (ContactId * ActivityId * string option* DateTime option* string list option) ParseResult =
     let create desc at tags = (contactId, activityId, desc,at,tags)
     match json with
     | JObject o -> create <!> (o .@? "description") <*> (o .@? "at") <*> (o .@? "tags")
-    | x -> Error (sprintf "Expected activity, found %A" x)
+    | x -> Decode.Fail.objExpected x
 
   let associateReq contactId otherContactId _ json : (ContactId*string*ContactId) ParseResult=
     //AssociateContactToContact (from,association,to')
     let create typ  = (contactId, typ, otherContactId)
     match json with
     | JObject o -> create <!> (o .@ "type")
-    | x -> Error (sprintf "Expected associate request, found %A" x)
+    | x -> Decode.Fail.objExpected x
 
-let webPart (repository : IContactRepository) (append:CommandContext*Command->Async<unit>) (time:unit->DateTime)=
-  let onCommand (context,command) = async {
-    do! append(context, command)
-    return repository.Handle command
-  }
-
-  /// overview would make more sense as a view compatible with a dashboard
-  let overview =
-    GET >=> fun (ctx) ->
-              let contactList =repository.GetContacts() |> List.map ToJson.contact |> JsonValue.ofList
-              Json.OK contactList ctx
-  let contactDetails id=
-    GET >=> fun (ctx) ->
-              match repository.GetContact(ContactId id) |> Option.map ToJson.contact with
-              | Some c->Json.OK c ctx
-              | None -> NOT_FOUND "" ctx
-  let getActivities id=
-    GET >=> fun (ctx) ->
-              let contactId = ContactId id
-              match repository.GetContact contactId
-                    |> Option.map (fun c->List.map (ToJson.activity contactId) c.activities |> JsonValue.ofList) with
-              | Some c->Json.OK c ctx
-              | None -> NOT_FOUND "" ctx
-  let getComments id=
-    GET >=> fun (ctx) ->
-              let contactId = ContactId id
-              match repository.GetContact contactId
-                    |> Option.map (fun c->List.map (ToJson.comment contactId) c.comments |> JsonValue.ofList) with
-              | Some c->Json.OK c ctx
-              | None -> NOT_FOUND "" ctx
-
-  let getAssociatedContacts id=
-    GET >=> fun (ctx) ->
-              match repository.GetContactAssociations(ContactId id)
-                    |> List.map ToJson.associatedContact with
-              | [] -> NOT_FOUND "" ctx
-              | list->Json.OK (JsonValue.ofList list) ctx
-
-  let getActivity (contactId,activityId)=
-    GET >=> fun (ctx) ->
-              let contactId = ContactId contactId
-              match repository.GetContact contactId
-                    |> Option.bind (Contact.activityWithId activityId) |> Option.map (ToJson.activity contactId)with
-              | Some c->Json.OK c ctx
-              | None -> NOT_FOUND "" ctx
-
-  let getComment (contactId,commentId)=
-    GET >=> fun (ctx) ->
-              let contactId = ContactId contactId
-              match repository.GetContact contactId
-                    |> Option.bind (Contact.commentWithId commentId) |> Option.map (ToJson.comment contactId) with
-              | Some c->Json.OK c ctx
-              | None -> NOT_FOUND "" ctx
+let webPart authenticated (repository : IContactRepository) onCommand (time:unit->DateTime)=
   /// handle command and add result to repository
   let ``persist_then_BAD_REQUEST_or_`` result (context:CommandContext) ofJson toCommand toJson=fun (ctx) -> monad {
     match Json.getBody ctx with
@@ -208,71 +176,134 @@ let webPart (repository : IContactRepository) (append:CommandContext*Command->As
       | Ok parsed->
         let! res = lift (onCommand(context,toCommand parsed))
         return! result (toJson (res,parsed)) ctx
-      | Error err -> return! (BAD_REQUEST err ctx)
+      | Error err -> return! (BAD_REQUEST (string err) ctx)
     | None -> return! (BAD_REQUEST "Unable to parse JSON" ctx) }
 
   let ``persist_then_OK_or_BAD_REQUEST`` context = ``persist_then_BAD_REQUEST_or_`` Json.OK context
   let ``persist_then_CREATED_or_BAD_REQUEST`` context = ``persist_then_BAD_REQUEST_or_`` Json.CREATED context
 
-  let createContact (context:CommandContext) : WebPart=
-    POST >=> ``persist_then_CREATED_or_BAD_REQUEST`` context
-              OfJson.contactReq
-              AddContact // tocommand
-              (snd >> ToJson.contact)
+  let contacts context =
+    /// overview would make more sense as a view compatible with a dashboard
+    let overview =
+      GET >=> fun (ctx) ->
+                let contactList =repository.GetContacts() |> List.map ToJson.contact |> JsonValue.ofList
+                Json.OK contactList ctx
 
-  let createActivity (context:CommandContext) contactId : WebPart=
-    let id = ContactId contactId
-    POST >=> ``persist_then_CREATED_or_BAD_REQUEST`` context
-              OfJson.activityReq
-              (fun activity->AddActivity(id, activity)) // tocommand
-              (snd >> (ToJson.activity id))
+    let get id=
+      GET >=> fun (ctx) ->
+                match repository.GetContact(ContactId id) |> Option.map ToJson.contact with
+                | Some c->Json.OK c ctx
+                | None -> NOT_FOUND "" ctx
 
-  let createComment (context:CommandContext) contactId : WebPart=
-    let id = ContactId contactId
-    POST >=> ``persist_then_CREATED_or_BAD_REQUEST`` context
-              OfJson.commentReq
-              (fun comment->AddComment(id, comment))  // tocommand
-              (snd >> (ToJson.comment id))
+    let create =
+      POST >=> ``persist_then_CREATED_or_BAD_REQUEST`` context
+                OfJson.contactReq
+                AddContact // tocommand
+                (snd >> ToJson.contact)
 
-  let updateContact (context:CommandContext) contactId : WebPart=
-    POST >=> ``persist_then_OK_or_BAD_REQUEST`` context
-              (OfJson.updateContactReq (ContactId contactId))
-              UpdateContact // tocommand
-              (fun _ -> JNull)
+    let update contactId =
+      POST >=> ``persist_then_OK_or_BAD_REQUEST`` context
+                (OfJson.updateContactReq (ContactId contactId))
+                UpdateContact // tocommand
+                (fun _ -> JNull)
 
-  let updateActivity (context:CommandContext) (contactId,activityId): WebPart=
-    POST >=> ``persist_then_OK_or_BAD_REQUEST`` context
-              (OfJson.updateActivityReq (ContactId contactId) (ActivityId activityId))
-              UpdateActivity // tocommand
-              (fun _ -> JNull)
+    [path Paths.contacts >=> overview
+     path Paths.contacts >=> create
+     pathScan Paths.contact get
+     pathScan Paths.contact update]
 
-  let associateContact (context:CommandContext) (contactId,otherContactId): WebPart=
-    PUT >=> ``persist_then_OK_or_BAD_REQUEST`` context
-              (OfJson.associateReq (ContactId contactId) (ContactId otherContactId))
-              AssociateContactToContact // tocommand
-              (fun _ -> JNull)
+  let activities context =
+
+    let list id=
+      GET >=> fun (ctx) ->
+                let contactId = ContactId id
+                match repository.GetContact contactId
+                      |> Option.map (fun c->List.map (ToJson.activity contactId) c.activities |> JsonValue.ofList) with
+                | Some c->Json.OK c ctx
+                | None -> NOT_FOUND "" ctx
+
+    let get (contactId,activityId)=
+      GET >=> fun (ctx) ->
+                let contactId = ContactId contactId
+                match repository.GetContact contactId
+                      |> Option.bind (Contact.activityWithId activityId) |> Option.map (ToJson.activity contactId)with
+                | Some c->Json.OK c ctx
+                | None -> NOT_FOUND "" ctx
+
+    let create contactId : WebPart<_>=
+      let id = ContactId contactId
+      POST >=> ``persist_then_CREATED_or_BAD_REQUEST`` context
+                OfJson.activityReq
+                (fun activity->AddActivity(id, activity)) // tocommand
+                (snd >> (ToJson.activity id))
+
+    let update (contactId,activityId): WebPart<_>=
+      POST >=> ``persist_then_OK_or_BAD_REQUEST`` context
+                (OfJson.updateActivityReq (ContactId contactId) (ActivityId activityId))
+                UpdateActivity // tocommand
+                (fun _ -> JNull)
+
+    [pathScan Paths.activities list
+     pathScan Paths.activities create
+     pathScan Paths.activity get
+     pathScan Paths.activity update]
+
+  let comments context =
+    let list id=
+      GET >=> fun (ctx) ->
+                let contactId = ContactId id
+                match repository.GetContact contactId
+                      |> Option.map (fun c->List.map (ToJson.comment contactId) c.comments |> JsonValue.ofList) with
+                | Some c->Json.OK c ctx
+                | None -> NOT_FOUND "" ctx
+
+    let get (contactId,commentId)=
+      GET >=> fun (ctx) ->
+                let contactId = ContactId contactId
+                match repository.GetContact contactId
+                      |> Option.bind (Contact.commentWithId commentId) |> Option.map (ToJson.comment contactId) with
+                | Some c->Json.OK c ctx
+                | None -> NOT_FOUND "" ctx
+
+    let create contactId : WebPart<_>=
+      let id = ContactId contactId
+      POST >=> ``persist_then_CREATED_or_BAD_REQUEST`` context
+                OfJson.commentReq
+                (fun comment->AddComment(id, comment))  // tocommand
+                (snd >> (ToJson.comment id))
+
+    [pathScan Paths.comments list
+     pathScan Paths.comments create
+     pathScan Paths.comment get]
+
+  let associations context =
+    let associateContact (contactId,otherContactId): WebPart<_>=
+      PUT >=> ``persist_then_OK_or_BAD_REQUEST`` context
+                (OfJson.associateReq (ContactId contactId) (ContactId otherContactId))
+                AssociateContactToContact // tocommand
+                (fun _ -> JNull)
+    let getAssociatedContacts id=
+      GET >=> fun (ctx) ->
+                match repository.GetContactAssociations(ContactId id)
+                      |> List.map ToJson.associatedContact with
+                | [] -> NOT_FOUND "" ctx
+                | list->Json.OK (JsonValue.ofList list) ctx
+
+    [pathScan Paths.associatedContacts getAssociatedContacts
+     pathScan Paths.associateContact associateContact]
 
   WebPart.choose [ path "/" >=> (OK "")
                    authenticated (function
                     | NoSession -> UNAUTHORIZED "Not logged in"
                     | UserLoggedOn user ->
                       let context = { at= time(); userId=user }
-                      WebPart.choose [ // contacts
-                                       path Paths.contacts >=> overview
-                                       path Paths.contacts >=> (createContact context)
-                                       pathScan Paths.contact contactDetails
-                                       pathScan Paths.contact (updateContact context)
+                      WebPart.choose  (List.concat [
+                                       contacts context
                                        // activities
-                                       pathScan Paths.activities getActivities
-                                       pathScan Paths.activities (createActivity context)
-                                       pathScan Paths.activity getActivity
-                                       pathScan Paths.activity (updateActivity context)
+                                       activities context
                                        // comments
-                                       pathScan Paths.comments getComments
-                                       pathScan Paths.comments (createComment context)
-                                       pathScan Paths.comment getComment
+                                       comments context
                                        // associate contact
-                                       pathScan Paths.associatedContacts getAssociatedContacts
-                                       pathScan Paths.associateContact (associateContact context)
-                                       ]
+                                       associations context
+                                       ])
                     )]
