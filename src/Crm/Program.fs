@@ -46,13 +46,16 @@ let main argv =
     if Option.isSome args.Json then yield JsonAppendToFile(args.Json.Value) :> IAppendBatch
   })
 
-  let commands = monad.plus {
-                  for appender in appenders do
-                    yield appender.ReadAll() }
-                |> Async.Parallel |> Async.RunSynchronously
-                |> Seq.collect id
-                |> Seq.map snd
-                |> Seq.toList
+  let commands =
+      monad.plus {
+        for appender in appenders do
+          yield appender.ReadAll()
+      }
+      |> Async.Parallel
+      |> Async.map Array.toList
+      |> Async.RunSynchronously
+      |> List.collect (List.map snd)
+
   for command in commands do
     repository.Handle command |> ignore
   let time ()=DateTime.UtcNow
