@@ -336,7 +336,154 @@ paths:
         204:
           description: Removed project
         404:
-          description: Could not find projectro
+          description: Could not find project
+  /projects/{projectId}/activities:
+    x-summary: Project activities
+    parameters:
+    - name: projectId
+      in: path
+      description: The id of the project
+      required: true
+      type: string
+    get:
+      summary: List all activities
+      responses:
+        200:
+          description: Successful Response
+          schema:
+            type: array
+            items:
+              $ref: '#/definitions/Activity'
+    post:
+      description: >-
+        Create a contact activity.
+      summary: Create a new activity
+      parameters:
+        - name: body
+          in: body
+          required: true
+          schema:
+            $ref: '#/definitions/ActivityRequest'
+      responses:
+        201:
+          description: ''
+          schema:
+            $ref: '#/definitions/Activity'
+  /projects/{projectId}/activities/{activityId}:
+    x-summary: A project activity
+    parameters:
+    - name: projectId
+      in: path
+      description: The id of the project
+      required: true
+      type: string
+    - name: activityId
+      in: path
+      description: The id of the activity
+      required: true
+      type: string
+    get:
+      summary: Get activity
+      responses:
+        200:
+          description: Successful Response
+          schema:
+            $ref: '#/definitions/Activity'
+        404:
+          description: Could not find project or activity
+    patch:
+      summary: Update activity
+      parameters:
+        - name: body
+          in: body
+          required: true
+          schema:
+            $ref: '#/definitions/ActivityRequest'
+      responses:
+        200:
+          description: Successful Response
+        404:
+          description: Could not find project or activity
+    delete:
+      summary: Remove activity
+      responses:
+        204:
+          description: Removed activity
+        404:
+          description: Could not find project or activity
+  /projects/{contactId}/comments:
+    x-summary: Project comments
+    parameters:
+    - name: contactId
+      in: path
+      description: The id of the project
+      required: true
+      type: string
+    get:
+      summary: List All comments
+      responses:
+        200:
+          description: Successful Response
+          schema:
+            type: array
+            items:
+              $ref: '#/definitions/Comment'
+    post:
+      description: >-
+        Create a contact comment.
+      summary: Create a new comment
+      parameters:
+        - name: body
+          in: body
+          required: true
+          schema:
+            $ref: '#/definitions/CommentRequest'
+      responses:
+        201:
+          description: ''
+          schema:
+            $ref: '#/definitions/Comment'
+  /projects/{projectId}/comments/{commentId}:
+    x-summary: A project comment
+    parameters:
+    - name: projectId
+      in: path
+      description: The id of the project
+      required: true
+      type: string
+    - name: commentId
+      in: path
+      description: The id of the comment
+      required: true
+      type: string
+    get:
+      summary: Get comment
+      responses:
+        200:
+          description: Successful Response
+          schema:
+            $ref: '#/definitions/Comment'
+        404:
+          description: Could not find project or comment
+    put:
+      #description: "Update comment."
+      summary: Update comment
+      parameters:
+        - name: body
+          in: body
+          required: true
+          schema:
+            $ref: '#/definitions/CommentRequest'
+      responses:
+        200:
+          description: Successful Response
+    delete:
+      summary: Remove comment
+      responses:
+        204:
+          description: Removed comment
+        404:
+          description: Could not find project or comment
 definitions:
   Comment:
     title: Comment
@@ -348,12 +495,12 @@ definitions:
       commentUri:
         type: string
         format: uri
-        example: "/contacts/24554354354355555/comments/235765789999345765"
+        #example: "/contacts/24554354354355555/comments/235765789999345765"
       comment:
         type: string
         example: "Potential!"
   CommentRequest:
-    title: Contact
+    title: Comment
     type: object
     properties:
       comment:
@@ -371,7 +518,7 @@ definitions:
       activityUri:
         type: string
         format: uri
-        example: "/contacts/24554354354355555/activities/439085790436709834679087"
+        #example: "/contacts/24554354354355555/activities/439085790436709834679087"
       description:
         type: string
         example: "Call client!"
@@ -427,6 +574,14 @@ definitions:
         items:
           type: string
         example: ["sale"]
+      comments:
+        type: array
+        items:
+          $ref: '#/definitions/Comment'
+      activities:
+        type: array
+        items:
+          $ref: '#/definitions/Activity'
 
   ProjectRequest:
     title: Project
