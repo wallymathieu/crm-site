@@ -499,6 +499,12 @@ definitions:
       comment:
         type: string
         example: "Potential!"
+      uris:
+        type: array
+        items:
+          type: string
+          format: uri
+
   CommentRequest:
     title: Comment
     type: object
@@ -506,6 +512,12 @@ definitions:
       comment:
         type: string
         example: "Potential!"
+      uris:
+        type: array
+        items:
+          type: string
+          format: uri
+
     required:
       - comment
   Activity:
@@ -531,6 +543,11 @@ definitions:
         items:
           type: string
         example: ["call"]
+      uris:
+        type: array
+        items:
+          type: string
+          format: uri
   ActivityRequest:
     title: Activity
     type: object
@@ -547,6 +564,11 @@ definitions:
         items:
           type: string
         example: ["call"]
+      uris:
+        type: array
+        items:
+          type: string
+          format: uri
     required:
       - description
       - at
@@ -582,6 +604,11 @@ definitions:
         type: array
         items:
           $ref: '#/definitions/Activity'
+      uris:
+        type: array
+        items:
+          type: string
+          format: uri
 
   ProjectRequest:
     title: Project
@@ -599,6 +626,12 @@ definitions:
         items:
           type: string
         example: ["sale"]
+      uris:
+        type: array
+        items:
+          type: string
+          format: uri
+
     required:
       - description
       
@@ -637,6 +670,11 @@ definitions:
         type: array
         items:
           $ref: '#/definitions/Activity'
+      uris:
+        type: array
+        items:
+          type: string
+          format: uri
 
   AssociatedContact:
     allOf:
@@ -674,5 +712,10 @@ definitions:
         items:
           type: string
         example: ["lead"]
+      uris:
+        type: array
+        items:
+          type: string
+          format: uri
     required:
       - name
