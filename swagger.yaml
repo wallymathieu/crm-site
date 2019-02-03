@@ -253,8 +253,7 @@ paths:
         404:
           description: Could not find contact or comment
     put:
-      description: >- 
-        Update comment.
+      #description: "Update comment."
       summary: Update comment
       parameters:
         - name: body
@@ -272,7 +271,72 @@ paths:
           description: Removed comment
         404:
           description: Could not find contact or comment
+  /projects:
+    x-summary: Projects
+    get:
+      summary: List All projects
+      responses:
+        200:
+          description: Successful Response
+          schema:
+            type: array
+            items:
+              $ref: '#/definitions/Project'
+    post:
+      description: >-
+        You may create your own projects using this action. It takes a JSON
+        object containing the available fields for projects.
+      summary: Create a new project
+      parameters:
+        - name: body
+          in: body
+          required: true
+          schema:
+            $ref: '#/definitions/ProjectRequest'
+      responses:
+        201:
+          description: ''
+          schema:
+            $ref: '#/definitions/Project'
+  /projects/{projectId}:
+    x-summary: A project
+    parameters:
+    - name: projectId
+      in: path
+      description: The id of the project
+      required: true
+      type: string
 
+    get:
+      summary: Get project
+      responses:
+        200:
+          description: Successful Response
+          schema:
+            $ref: '#/definitions/Project'
+        404:
+          description: Could not find project
+    patch:
+      summary: Update project
+      parameters:
+        - name: body
+          in: body
+          required: true
+          schema:
+            $ref: '#/definitions/ProjectRequest'
+      responses:
+        200:
+          description: Successful Response
+        404:
+          description: Could not find project
+
+    delete:
+      summary: Remove project
+      responses:
+        204:
+          description: Removed project
+        404:
+          description: Could not find projectro
 definitions:
   Comment:
     title: Comment
@@ -280,9 +344,11 @@ definitions:
     properties:
       commentId: 
         type: string
+        example: "235765789999345765"
       commentUri:
         type: string
         format: uri
+        example: "/contacts/24554354354355555/comments/235765789999345765"
       comment:
         type: string
         example: "Potential!"
@@ -301,9 +367,11 @@ definitions:
     properties:
       activityId: 
         type: string
+        example: "439085790436709834679087"
       activityUri:
         type: string
         format: uri
+        example: "/contacts/24554354354355555/activities/439085790436709834679087"
       description:
         type: string
         example: "Call client!"
@@ -335,15 +403,61 @@ definitions:
     required:
       - description
       - at
+      
+  Project:
+    title: Project
+    type: object
+    properties:
+      projectId: 
+        type: string
+        example: "564465465464222"
+      projectUri:
+        type: string
+        format: uri
+        example: "/projects/564465465464222"
+      description:
+        type: string
+        example: Sell computer system
+      due:
+        type: string
+        format: date-time
+        example: "2020-07-21T17:32:28Z"
+      tags:
+        type: array
+        items:
+          type: string
+        example: ["sale"]
+
+  ProjectRequest:
+    title: Project
+    type: object
+    properties:
+      description:
+        type: string
+        example: "Sell computer system"
+      due:
+        type: string
+        format: date-time
+        example: "2020-07-21T17:32:28Z"
+      tags:
+        type: array
+        items:
+          type: string
+        example: ["sale"]
+    required:
+      - description
+      
   Contact:
     title: Contact
     type: object
     properties:
       contactId: 
         type: string
+        example: "24554354354355555"
       contactUri:
         type: string
         format: uri
+        example: "/contacts/24554354354355555"
       name:
         type: string
         example: Erik Eriksson
