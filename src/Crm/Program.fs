@@ -41,7 +41,7 @@ let main argv =
     |> List.ofArray
     |> parseArgs defaultArgs
 
-  let repository = ContactRepository()
+  let repository = EntityRepository()
   let appenders = Seq.toList (seq {
     if Option.isSome args.Json then yield JsonAppendToFile(args.Json.Value) :> IAppendBatch
   })

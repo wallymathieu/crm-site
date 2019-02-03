@@ -69,8 +69,8 @@ module Paths =
   /// /contacts/INT
   let contact : Int64Path = "/contacts/%d"
   /// /contacts/INT/contacts
-  let associatedContacts : Int64Path = "/contacts/%d/contacts"
-  let associateContact : Int64AndInt64Path = "/contacts/%d/contacts/%d"
+  let associatedEntitys : Int64Path = "/contacts/%d/contacts"
+  let associateEntity : Int64AndInt64Path = "/contacts/%d/contacts/%d"
   /// /contacts/INT/activities
   let activities : Int64Path = "/contacts/%d/activities"
   /// /contacts/INT/activities/INT
@@ -85,27 +85,27 @@ module Paths =
 module JsonValue=
   let ofList = List.toArray >> JsonValue.Array
 module ToJson=
-  let comment (ContactId contactId) (comment: Comment) :JsonValue =
+  let comment (EntityId entityId) (comment: Comment) :JsonValue =
     jobj [
       "commentId" .= comment.commentId
-      "commentUri" .= (sprintf Paths.comment contactId comment.commentId)
+      "commentUri" .= (sprintf Paths.comment entityId comment.commentId)
       "comment" .= comment.comment
     ]
 
-  let activity (ContactId contactId) (activity: Activity) :JsonValue =
+  let activity (EntityId entityId) (activity: Activity) :JsonValue =
     jobj [
       "activityId" .= activity.activityId
-      "activityUri" .= (sprintf Paths.activity contactId activity.activityId)
+      "activityUri" .= (sprintf Paths.activity entityId activity.activityId)
       "description" .= activity.description
       "at" .= activity.at
       "tags" .= activity.tags
     ]
-  let contactProperties (contact: Contact)=
-    let activities = List.map (activity contact.contactId) contact.activities |> JsonValue.ofList
-    let comments = List.map (comment contact.contactId) contact.comments |> JsonValue.ofList
+  let contactProperties (contact: Entity)=
+    let activities = List.map (activity contact.entityId) contact.activities |> JsonValue.ofList
+    let comments = List.map (comment contact.entityId) contact.comments |> JsonValue.ofList
     [
-      "contactId" .= ContactId.unwrap contact.contactId
-      "contactUri" .= (sprintf Paths.contact <| ContactId.unwrap contact.contactId)
+      "entityId" .= EntityId.unwrap contact.entityId
+      "contactUri" .= (sprintf Paths.contact <| EntityId.unwrap contact.entityId)
       "name" .= contact.name
       "phone" .= contact.phone
       "email" .= contact.email
@@ -113,14 +113,14 @@ module ToJson=
       "activities", activities
       "comments", comments
     ]
-  let contact (contact: Contact) :JsonValue =
+  let contact (contact: Entity) :JsonValue =
     jobj <| contactProperties contact
-  let associatedContact (contact: Contact, tag) :JsonValue =
+  let associatedEntity (contact: Entity, tag) :JsonValue =
     jobj <| ["type" .= tag] @ (contactProperties contact)
 module OfJson=
-  let contactReq context json : Contact ParseResult =
+  let contactReq context json : Entity ParseResult =
     let create name phone email tags= {
-      contactId = CommandContext.idOf name context |> ContactId
+      entityId = CommandContext.idOf name context |> EntityId
       name=name
       phone=Option.defaultValue "" phone; email=Option.defaultValue "" email
       tags=Option.defaultValue [] tags
@@ -147,27 +147,27 @@ module OfJson=
     | JObject o -> create <!> (o .@ "description") <*> (o .@ "at") <*> (o .@? "tags")
     | x -> Decode.Fail.objExpected x
 
-  let updateContactReq (contactId)  _ json:  (ContactId * string option* string option* string option * string list option) ParseResult=
+  let updateEntityReq (entityId)  _ json:  (EntityId * string option* string option* string option * string list option) ParseResult=
     //name:string * phone:string * email:string
-    let create name phone email tags= (contactId, name, phone, email, tags)
+    let create name phone email tags= (entityId, name, phone, email, tags)
     match json with
     | JObject o -> create <!> (o .@? "name") <*> (o .@? "phone") <*> (o .@? "email") <*> (o .@? "tags")
     | x -> Decode.Fail.objExpected x
 
-  let updateActivityReq contactId activityId _ json: (ContactId * ActivityId * string option* DateTime option* string list option) ParseResult =
-    let create desc at tags = (contactId, activityId, desc,at,tags)
+  let updateActivityReq entityId activityId _ json: (EntityId * ActivityId * string option* DateTime option* string list option) ParseResult =
+    let create desc at tags = (entityId, activityId, desc,at,tags)
     match json with
     | JObject o -> create <!> (o .@? "description") <*> (o .@? "at") <*> (o .@? "tags")
     | x -> Decode.Fail.objExpected x
 
-  let associateReq contactId otherContactId _ json : (ContactId*string*ContactId) ParseResult=
-    //AssociateContactToContact (from,association,to')
-    let create typ  = (contactId, typ, otherContactId)
+  let associateReq entityId otherEntityId _ json : (EntityId*string*EntityId) ParseResult=
+    //AssociateEntityToEntity (from,association,to')
+    let create typ  = (entityId, typ, otherEntityId)
     match json with
     | JObject o -> create <!> (o .@ "type")
     | x -> Decode.Fail.objExpected x
 
-let webPart authenticated (repository : IContactRepository) onCommand (time:unit->DateTime)=
+let webPart authenticated (repository : IEntityRepository) onCommand (time:unit->DateTime)=
   /// handle command and add result to repository
   let ``persist_then_BAD_REQUEST_or_`` result (context:CommandContext) ofJson toCommand toJson=fun (ctx) -> monad {
     match Json.getBody ctx with
@@ -186,25 +186,25 @@ let webPart authenticated (repository : IContactRepository) onCommand (time:unit
     /// overview would make more sense as a view compatible with a dashboard
     let overview =
       GET >=> fun (ctx) ->
-                let contactList =repository.GetContacts() |> List.map ToJson.contact |> JsonValue.ofList
+                let contactList =repository.GetEntitys() |> List.map ToJson.contact |> JsonValue.ofList
                 Json.OK contactList ctx
 
     let get id=
       GET >=> fun (ctx) ->
-                match repository.GetContact(ContactId id) |> Option.map ToJson.contact with
+                match repository.GetEntity(EntityId id) |> Option.map ToJson.contact with
                 | Some c->Json.OK c ctx
                 | None -> NOT_FOUND "" ctx
 
     let create =
       POST >=> ``persist_then_CREATED_or_BAD_REQUEST`` context
                 OfJson.contactReq
-                AddContact // tocommand
+                AddEntity // tocommand
                 (snd >> ToJson.contact)
 
-    let update contactId =
+    let update entityId =
       POST >=> ``persist_then_OK_or_BAD_REQUEST`` context
-                (OfJson.updateContactReq (ContactId contactId))
-                UpdateContact // tocommand
+                (OfJson.updateEntityReq (EntityId entityId))
+                UpdateEntity // tocommand
                 (fun _ -> JNull)
 
     [path Paths.contacts >=> overview
@@ -216,30 +216,30 @@ let webPart authenticated (repository : IContactRepository) onCommand (time:unit
 
     let list id=
       GET >=> fun (ctx) ->
-                let contactId = ContactId id
-                match repository.GetContact contactId
-                      |> Option.map (fun c->List.map (ToJson.activity contactId) c.activities |> JsonValue.ofList) with
+                let entityId = EntityId id
+                match repository.GetEntity entityId
+                      |> Option.map (fun c->List.map (ToJson.activity entityId) c.activities |> JsonValue.ofList) with
                 | Some c->Json.OK c ctx
                 | None -> NOT_FOUND "" ctx
 
-    let get (contactId,activityId)=
+    let get (entityId,activityId)=
       GET >=> fun (ctx) ->
-                let contactId = ContactId contactId
-                match repository.GetContact contactId
-                      |> Option.bind (Contact.activityWithId activityId) |> Option.map (ToJson.activity contactId)with
+                let entityId = EntityId entityId
+                match repository.GetEntity entityId
+                      |> Option.bind (Entity.activityWithId activityId) |> Option.map (ToJson.activity entityId)with
                 | Some c->Json.OK c ctx
                 | None -> NOT_FOUND "" ctx
 
-    let create contactId : WebPart<_>=
-      let id = ContactId contactId
+    let create entityId : WebPart<_>=
+      let id = EntityId entityId
       POST >=> ``persist_then_CREATED_or_BAD_REQUEST`` context
                 OfJson.activityReq
                 (fun activity->AddActivity(id, activity)) // tocommand
                 (snd >> (ToJson.activity id))
 
-    let update (contactId,activityId): WebPart<_>=
+    let update (entityId,activityId): WebPart<_>=
       POST >=> ``persist_then_OK_or_BAD_REQUEST`` context
-                (OfJson.updateActivityReq (ContactId contactId) (ActivityId activityId))
+                (OfJson.updateActivityReq (EntityId entityId) (ActivityId activityId))
                 UpdateActivity // tocommand
                 (fun _ -> JNull)
 
@@ -251,22 +251,22 @@ let webPart authenticated (repository : IContactRepository) onCommand (time:unit
   let comments context =
     let list id=
       GET >=> fun (ctx) ->
-                let contactId = ContactId id
-                match repository.GetContact contactId
-                      |> Option.map (fun c->List.map (ToJson.comment contactId) c.comments |> JsonValue.ofList) with
+                let entityId = EntityId id
+                match repository.GetEntity entityId
+                      |> Option.map (fun c->List.map (ToJson.comment entityId) c.comments |> JsonValue.ofList) with
                 | Some c->Json.OK c ctx
                 | None -> NOT_FOUND "" ctx
 
-    let get (contactId,commentId)=
+    let get (entityId,commentId)=
       GET >=> fun (ctx) ->
-                let contactId = ContactId contactId
-                match repository.GetContact contactId
-                      |> Option.bind (Contact.commentWithId commentId) |> Option.map (ToJson.comment contactId) with
+                let entityId = EntityId entityId
+                match repository.GetEntity entityId
+                      |> Option.bind (Entity.commentWithId commentId) |> Option.map (ToJson.comment entityId) with
                 | Some c->Json.OK c ctx
                 | None -> NOT_FOUND "" ctx
 
-    let create contactId : WebPart<_>=
-      let id = ContactId contactId
+    let create entityId : WebPart<_>=
+      let id = EntityId entityId
       POST >=> ``persist_then_CREATED_or_BAD_REQUEST`` context
                 OfJson.commentReq
                 (fun comment->AddComment(id, comment))  // tocommand
@@ -277,20 +277,20 @@ let webPart authenticated (repository : IContactRepository) onCommand (time:unit
      pathScan Paths.comment get]
 
   let associations context =
-    let associateContact (contactId,otherContactId): WebPart<_>=
+    let associateEntity (entityId,otherEntityId): WebPart<_>=
       PUT >=> ``persist_then_OK_or_BAD_REQUEST`` context
-                (OfJson.associateReq (ContactId contactId) (ContactId otherContactId))
-                AssociateContactToContact // tocommand
+                (OfJson.associateReq (EntityId entityId) (EntityId otherEntityId))
+                AssociateEntityToEntity // tocommand
                 (fun _ -> JNull)
-    let getAssociatedContacts id=
+    let getAssociatedEntitys id=
       GET >=> fun (ctx) ->
-                match repository.GetContactAssociations(ContactId id)
-                      |> List.map ToJson.associatedContact with
+                match repository.GetEntityAssociations(EntityId id)
+                      |> List.map ToJson.associatedEntity with
                 | [] -> NOT_FOUND "" ctx
                 | list->Json.OK (JsonValue.ofList list) ctx
 
-    [pathScan Paths.associatedContacts getAssociatedContacts
-     pathScan Paths.associateContact associateContact]
+    [pathScan Paths.associatedEntitys getAssociatedEntitys
+     pathScan Paths.associateEntity associateEntity]
 
   WebPart.choose [ path "/" >=> (OK "")
                    authenticated (function
