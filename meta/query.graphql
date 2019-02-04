@@ -1,0 +1,21 @@
+
+{
+  Contacts(where: {id:{ _eq:1}} ){
+    id
+    name
+    comments{
+      comment
+      at
+    }
+    email
+    ... on Contacts{
+      from{
+        ... on ContactAssociations{
+          to{
+            name
+          }
+        }
+      }
+    }
+  }
+}
