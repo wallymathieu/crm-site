@@ -1,0 +1,1 @@
+metadata.json contains hasura exported metadata

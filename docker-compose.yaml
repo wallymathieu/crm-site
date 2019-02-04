@@ -1,0 +1,32 @@
+version: '3.6'
+services:
+
+  postgres:
+    image: postgres
+    restart: always
+    volumes:
+    - db_data:/var/lib/postgresql/data
+    ports:
+    - "5432:5432"
+
+  graphql-engine:
+    image: hasura/graphql-engine:v1.0.0-alpha37
+    ports:
+    - "8080:8080"
+    depends_on:
+    - "postgres"
+    restart: always
+    environment:
+      HASURA_GRAPHQL_DATABASE_URL: postgres://postgres:@postgres:5432/postgres
+      HASURA_GRAPHQL_ENABLE_CONSOLE: "true" # set to "false" to disable console
+      ## uncomment next line to set an access key
+      # HASURA_GRAPHQL_ACCESS_KEY: mysecretaccesskey
+
+volumes:
+  db_data:
+
+# docker exec -t crm-site_postgres_1 pg_dumpall -c -U postgres > dump_`date +%d-%m-%Y"_"%H_%M_%S`.sql
+
+# docker exec -t crm-site_postgres_1 pg_dump -n public -U postgres > dump_`date +%d-%m-%Y"_"%H_%M_%S`.sql
+
+# cat dump_04-02-2019_22_12_27.sql | docker exec -i crm-site_postgres_1 psql -U postgres

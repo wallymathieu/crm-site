@@ -1,0 +1,298 @@
+{
+    "functions": [],
+    "remote_schemas": [],
+    "tables": [{
+        "table": "Contacts",
+        "object_relationships": [],
+        "array_relationships": [{
+            "using": {
+                "manual_configuration": {
+                    "remote_table": "Contacts",
+                    "column_mapping": {
+                        "id": "id"
+                    }
+                }
+            },
+            "name": "tags",
+            "comment": null
+        }, {
+            "using": {
+                "manual_configuration": {
+                    "remote_table": "Activities",
+                    "column_mapping": {
+                        "id": "contactId"
+                    }
+                }
+            },
+            "name": "activities",
+            "comment": null
+        }, {
+            "using": {
+                "manual_configuration": {
+                    "remote_table": "Comments",
+                    "column_mapping": {
+                        "id": "contactId"
+                    }
+                }
+            },
+            "name": "comments",
+            "comment": null
+        }, {
+            "using": {
+                "manual_configuration": {
+                    "remote_table": "ContactAssociations",
+                    "column_mapping": {
+                        "id": "fromContactId"
+                    }
+                }
+            },
+            "name": "from",
+            "comment": null
+        }, {
+            "using": {
+                "manual_configuration": {
+                    "remote_table": "ContactAssociations",
+                    "column_mapping": {
+                        "id": "toContactId"
+                    }
+                }
+            },
+            "name": "to",
+            "comment": null
+        }],
+        "insert_permissions": [],
+        "select_permissions": [],
+        "update_permissions": [],
+        "delete_permissions": [],
+        "event_triggers": []
+    }, {
+        "table": "Tags",
+        "object_relationships": [],
+        "array_relationships": [{
+            "using": {
+                "manual_configuration": {
+                    "remote_table": "ContactTags",
+                    "column_mapping": {
+                        "name": "tagName"
+                    }
+                }
+            },
+            "name": "contacts",
+            "comment": null
+        }, {
+            "using": {
+                "manual_configuration": {
+                    "remote_table": "ProjectTags",
+                    "column_mapping": {
+                        "name": "tagName"
+                    }
+                }
+            },
+            "name": "projects",
+            "comment": null
+        }],
+        "insert_permissions": [],
+        "select_permissions": [],
+        "update_permissions": [],
+        "delete_permissions": [],
+        "event_triggers": []
+    }, {
+        "table": "Comments",
+        "object_relationships": [{
+            "using": {
+                "manual_configuration": {
+                    "remote_table": "Contacts",
+                    "column_mapping": {
+                        "contactId": "id"
+                    }
+                }
+            },
+            "name": "contact",
+            "comment": null
+        }, {
+            "using": {
+                "manual_configuration": {
+                    "remote_table": "Projects",
+                    "column_mapping": {
+                        "projectId": "id"
+                    }
+                }
+            },
+            "name": "project",
+            "comment": null
+        }],
+        "array_relationships": [],
+        "insert_permissions": [],
+        "select_permissions": [],
+        "update_permissions": [],
+        "delete_permissions": [],
+        "event_triggers": []
+    }, {
+        "table": "Projects",
+        "object_relationships": [],
+        "array_relationships": [{
+            "using": {
+                "manual_configuration": {
+                    "remote_table": "ProjectTags",
+                    "column_mapping": {
+                        "id": "projectId"
+                    }
+                }
+            },
+            "name": "tags",
+            "comment": null
+        }, {
+            "using": {
+                "manual_configuration": {
+                    "remote_table": "Comments",
+                    "column_mapping": {
+                        "id": "projectId"
+                    }
+                }
+            },
+            "name": "comments",
+            "comment": null
+        }, {
+            "using": {
+                "manual_configuration": {
+                    "remote_table": "Activities",
+                    "column_mapping": {
+                        "id": "projectId"
+                    }
+                }
+            },
+            "name": "activities",
+            "comment": null
+        }],
+        "insert_permissions": [],
+        "select_permissions": [],
+        "update_permissions": [],
+        "delete_permissions": [],
+        "event_triggers": []
+    }, {
+        "table": "Activities",
+        "object_relationships": [{
+            "using": {
+                "manual_configuration": {
+                    "remote_table": "Contacts",
+                    "column_mapping": {
+                        "contactId": "id"
+                    }
+                }
+            },
+            "name": "contact",
+            "comment": null
+        }, {
+            "using": {
+                "manual_configuration": {
+                    "remote_table": "Projects",
+                    "column_mapping": {
+                        "projectId": "id"
+                    }
+                }
+            },
+            "name": "project",
+            "comment": null
+        }],
+        "array_relationships": [],
+        "insert_permissions": [],
+        "select_permissions": [],
+        "update_permissions": [],
+        "delete_permissions": [],
+        "event_triggers": []
+    }, {
+        "table": "ProjectTags",
+        "object_relationships": [{
+            "using": {
+                "manual_configuration": {
+                    "remote_table": "Projects",
+                    "column_mapping": {
+                        "projectId": "id"
+                    }
+                }
+            },
+            "name": "project",
+            "comment": null
+        }, {
+            "using": {
+                "manual_configuration": {
+                    "remote_table": "Tags",
+                    "column_mapping": {
+                        "tagName": "name"
+                    }
+                }
+            },
+            "name": "tag",
+            "comment": null
+        }],
+        "array_relationships": [],
+        "insert_permissions": [],
+        "select_permissions": [],
+        "update_permissions": [],
+        "delete_permissions": [],
+        "event_triggers": []
+    }, {
+        "table": "ContactTags",
+        "object_relationships": [{
+            "using": {
+                "manual_configuration": {
+                    "remote_table": "Contacts",
+                    "column_mapping": {
+                        "contactId": "id"
+                    }
+                }
+            },
+            "name": "contact",
+            "comment": null
+        }, {
+            "using": {
+                "manual_configuration": {
+                    "remote_table": "Tags",
+                    "column_mapping": {
+                        "tagName": "name"
+                    }
+                }
+            },
+            "name": "tag",
+            "comment": null
+        }],
+        "array_relationships": [],
+        "insert_permissions": [],
+        "select_permissions": [],
+        "update_permissions": [],
+        "delete_permissions": [],
+        "event_triggers": []
+    }, {
+        "table": "ContactAssociations",
+        "object_relationships": [{
+            "using": {
+                "manual_configuration": {
+                    "remote_table": "Contacts",
+                    "column_mapping": {
+                        "fromContactId": "id"
+                    }
+                }
+            },
+            "name": "from",
+            "comment": null
+        }, {
+            "using": {
+                "manual_configuration": {
+                    "remote_table": "Contacts",
+                    "column_mapping": {
+                        "toContactId": "id"
+                    }
+                }
+            },
+            "name": "to",
+            "comment": null
+        }],
+        "array_relationships": [],
+        "insert_permissions": [],
+        "select_permissions": [],
+        "update_permissions": [],
+        "delete_permissions": [],
+        "event_triggers": []
+    }],
+    "query_templates": []
+}
